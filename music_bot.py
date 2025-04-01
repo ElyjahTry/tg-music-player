@@ -1,4 +1,4 @@
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from telegram.ext import (
     ApplicationBuilder, MessageHandler, CommandHandler,
     ContextTypes, filters, ConversationHandler
@@ -7,13 +7,12 @@ import json
 import os
 
 TOKEN = '7653784788:AAHeNQqdYB95aeuGCcVmHl_ytTsRvFvzkk8'
-
 DATA_FILE = 'data.json'
 USER_STATE = {}  # Временное хранилище состояний пользователей
 
 STAGE_ALBUM, STAGE_YEAR, STAGE_GENRE, STAGE_COVER = range(4)
 
-# Создаём пустой JSON, если нет
+# Если data.json не существует, создаём его
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, 'w') as f:
         json.dump({"tracks": []}, f)
@@ -27,12 +26,16 @@ def load_data():
         return json.load(f)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Пришли мне MP3, и я их сохраню 📀")
+    # Добавляем кнопку для открытия Web App (ссылка на деплой Vercel)
+    keyboard = [
+        [KeyboardButton("🎧 Открыть плеер", web_app=WebAppInfo(url="https://tg-music-player-frontend.vercel.app/"))]
+    ]
+    markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text("Привет! Нажми на кнопку, чтобы открыть плеер:", reply_markup=markup)
 
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     audio = message.audio
-
     if audio:
         file_id = audio.file_id
         title = audio.title or "Без названия"
@@ -48,8 +51,11 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "duration": duration
         }
 
-        # Временно сохраняем для дополнения
+        # Сохраняем временно данные для дополнения информации
         USER_STATE[message.from_user.id] = track
+
+        # Логирование: выводим данные трека в консоль
+        print(f"Track received: {track}")
 
         await message.reply_text(
             f"🎶 Сохранил: {performer} – {title}\n"
@@ -92,8 +98,7 @@ async def get_genre(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_cover(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     if update.message.photo:
-        # Берём самую большую версию
-        photo = update.message.photo[-1]
+        photo = update.message.photo[-1]  # Берём самую большую фотографию
         USER_STATE[user_id]["cover_file_id"] = photo.file_id
     else:
         USER_STATE[user_id]["cover_file_id"] = None
@@ -108,6 +113,8 @@ async def get_cover(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def list_tracks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = load_data()
+    # Логируем содержимое треков для отладки
+    print(f"Tracks loaded: {data['tracks']}")
     if not data["tracks"]:
         await update.message.reply_text("Нет сохранённых треков 😢")
         return
@@ -115,12 +122,10 @@ async def list_tracks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = "📂 Твои треки:\n\n"
     for i, t in enumerate(data["tracks"], start=1):
         msg += f"{i}. {t.get('performer', '?')} – {t.get('title', '?')}\n"
-
     await update.message.reply_text(msg)
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-# ConversationHandler для расширенных метаданных
 conv_handler = ConversationHandler(
     entry_points=[MessageHandler(filters.AUDIO, handle_audio)],
     states={
