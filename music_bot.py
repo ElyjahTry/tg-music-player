@@ -28,7 +28,7 @@ def load_data():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Добавляем кнопку для открытия Web App (ссылка на деплой Vercel)
     keyboard = [
-        [KeyboardButton("🎧 Открыть плеер", web_app=WebAppInfo(url="https://tg-music-player-frontend.vercel.app/"))]
+        [KeyboardButton("🎧 Открыть плеер", web_app=WebAppInfo(url="http://localhost:3000"))]
     ]
     markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text("Привет! Нажми на кнопку, чтобы открыть плеер:", reply_markup=markup)
